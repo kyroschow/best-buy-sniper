@@ -6,6 +6,7 @@ import { logger } from '@core/logger';
 import { resolve } from 'path';
 import { sendMessage as sendDiscordMessage } from '@core/notifications/discord';
 import { existsSync, writeFileSync } from 'fs';
+const performance = require('perf_hooks').performance;
 
 interface ProductInformation {
   searchText?: string;
@@ -128,22 +129,47 @@ export class BestBuy {
 
     await page.focus('.add-to-cart-button:not([disabled])');
 
-    const productInStockScreenshotPath = resolve(`screenshots/${Date.now()}_product-in-stock.png`);
+    // Avoid interruption if screenshot or discord messaging fails
+    try {
+      const productInStockScreenshotPath = resolve(`screenshots/${Date.now()}_product-in-stock.png`);
 
-    await page.screenshot({
-      path: productInStockScreenshotPath,
-      type: 'png'
-    });
+      await page.screenshot({
+        path: productInStockScreenshotPath,
+        type: 'png'
+      });
 
-    await Promise.all([
-      sendDiscordMessage({ message: `Product "${productName}" in stock!`, image: productInStockScreenshotPath }),
-    ]);
+      await Promise.all([
+        sendDiscordMessage({ message: `Product "${productName}" in stock!`, image: productInStockScreenshotPath }),
+      ]);
+    }
+    catch (err) {
+      logger.error(err.message);
+    }
 
     logger.info(`"${productName}" in stock, adding to cart...`);
 
     await page.click('.add-to-cart-button:not([disabled])');
+    let result = await this.hasItemBeenAddedToCart();
 
-    const result = await this.hasItemBeenAddedToCart();
+
+    // ****** For high demand items like 3000 series gpu enable this code block ****** //
+    let startTime = performance.now();
+    let elapsed = 0;
+    let timeout_sec: number = 300; // timeout in seconds, default 5 minutes
+
+    while (!result && elapsed < timeout_sec) {
+      logger.info('Item was not added to cart due to BestBuy queue protection system. Retrying in 2sec...');
+      await this.delay(2000); // wait 2 seconds and re-check if the button got enabled
+      let buttonEnabled = await this.isInStock();
+      if (buttonEnabled) {
+        await page.focus('.add-to-cart-button:not([disabled])');
+        await page.click('.add-to-cart-button:not([disabled])');
+      }
+      elapsed = Math.floor((performance.now() - startTime) % 1000); // convert to sec and update elapsed
+      result = await this.hasItemBeenAddedToCart();
+    }
+    // ******************************************************************************* //
+
 
     if (!result) throw new Error(`Product "${productName}" was not able to be added to the cart`);
 
@@ -151,14 +177,24 @@ export class BestBuy {
 
     logger.info(`Product "${productName}" added to cart!`);
 
-    await page.screenshot({
-      path: productAddedImagePath,
-      type: 'png'
-    });
+    // Avoid interruption if screenshot or discord messaging fails
+    try {
+      await page.screenshot({
+        path: productAddedImagePath,
+        type: 'png'
+      });
 
-    await Promise.all([
-      sendDiscordMessage({ message: `Product "${productName}" added to cart!`, image: productAddedImagePath }),
-    ]);
+      await Promise.all([
+        sendDiscordMessage({ message: `Product "${productName}" added to cart!`, image: productAddedImagePath }),
+      ]);
+    }
+    catch (err) {
+      logger.error(err.message);
+    }
+  }
+
+  public async delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   public async isInStock() {
