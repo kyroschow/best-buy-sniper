@@ -153,21 +153,27 @@ export class BestBuy {
 
 
     // ****** For high demand items like 3000 series gpu enable this code block ****** //
-    let startTime = performance.now();
-    let elapsed = 0;
-    let timeout_sec: number = 300; // timeout in seconds, default 5 minutes
+    try {
+      let startTime = performance.now();
+      let elapsed = 0;
+      let timeout_sec: number = 300; // timeout in seconds, default 5 minutes
 
-    while (!result && elapsed < timeout_sec) {
-      logger.info('Item was not added to cart due to BestBuy queue protection system. Retrying in 2sec...');
-      await this.delay(2000); // wait 2 seconds and re-check if the button got enabled
-      let buttonEnabled = await this.isInStock();
-      if (buttonEnabled) {
-        await page.focus('.add-to-cart-button:not([disabled])');
-        await page.click('.add-to-cart-button:not([disabled])');
+      while (!result && elapsed < timeout_sec) {
+        logger.info('Item was not added to cart due to BestBuy queue protection system. Retrying in 2sec...');
+        await this.delay(2000); // wait 2 seconds and re-check if the button got enabled
+        let buttonEnabled = await this.isInStock();
+        if (buttonEnabled) {
+          await page.focus('.add-to-cart-button:not([disabled])');
+          await page.click('.add-to-cart-button:not([disabled])');
+        }
+        elapsed = Math.floor((performance.now() - startTime) / 1000); // convert to sec and update elapsed
+        result = await this.hasItemBeenAddedToCart();
       }
-      elapsed = Math.floor((performance.now() - startTime) % 1000); // convert to sec and update elapsed
-      result = await this.hasItemBeenAddedToCart();
     }
+    catch (err) {
+      logger.error(`Error re-trying to add to cart: ${err}`);
+    }
+
     // ******************************************************************************* //
 
 
