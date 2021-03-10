@@ -129,28 +129,22 @@ export class BestBuy {
 
     await page.focus('.add-to-cart-button:not([disabled])');
 
-    // Avoid interruption if screenshot or discord messaging fails
-    try {
-      const productInStockScreenshotPath = resolve(`screenshots/${Date.now()}_product-in-stock.png`);
 
-      await page.screenshot({
-        path: productInStockScreenshotPath,
-        type: 'png'
-      });
+    const productInStockScreenshotPath = resolve(`screenshots/${Date.now()}_product-in-stock.png`);
 
-      await Promise.all([
-        sendDiscordMessage({ message: `Product "${productName}" in stock!`, image: productInStockScreenshotPath }),
-      ]);
-    }
-    catch (err) {
-      logger.error(err.message);
-    }
+    await page.screenshot({
+      path: productInStockScreenshotPath,
+      type: 'png'
+    });
+
+    await Promise.all([
+      sendDiscordMessage({ message: `Product "${productName}" in stock!`, image: productInStockScreenshotPath }),
+    ]);
 
     logger.info(`"${productName}" in stock, adding to cart...`);
 
     await page.click('.add-to-cart-button:not([disabled])');
     let result = await this.hasItemBeenAddedToCart();
-
 
     // ****** For high demand items like 3000 series gpu enable this code block ****** //
     try {
@@ -183,20 +177,16 @@ export class BestBuy {
 
     logger.info(`Product "${productName}" added to cart!`);
 
-    // Avoid interruption if screenshot or discord messaging fails
-    try {
-      await page.screenshot({
-        path: productAddedImagePath,
-        type: 'png'
-      });
 
-      await Promise.all([
-        sendDiscordMessage({ message: `Product "${productName}" added to cart!`, image: productAddedImagePath }),
-      ]);
-    }
-    catch (err) {
-      logger.error(err.message);
-    }
+    await page.screenshot({
+      path: productAddedImagePath,
+      type: 'png'
+    });
+
+    await Promise.all([
+      sendDiscordMessage({ message: `Product "${productName}" added to cart!`, image: productAddedImagePath }),
+    ]);
+
   }
 
   public async delay(ms: number) {
@@ -213,13 +203,17 @@ export class BestBuy {
   }
 
   private async hasItemBeenAddedToCart() {
-    const page = await this.getPage();
-
-    const completedSuccessfuly = await page.waitForResponse(
-      (response: any) => response.url() === 'https://www.bestbuy.com/cart/api/v1/addToCart' && response.status() === 200
-    );
-
-    return completedSuccessfuly;
+    try {
+      const page = await this.getPage();
+      const completedSuccessfuly = await page.waitForResponse(
+        (response: any) => response.url() === 'https://www.bestbuy.com/cart/api/v1/addToCart' && response.status() === 200
+      );
+      return completedSuccessfuly;
+    }
+    catch {
+      logger.warn(`Item has not been added to cart...`);
+      return null;
+    }
   }
 
   private async checkout(retrying: boolean = false) {
@@ -266,7 +260,7 @@ export class BestBuy {
     await this.clickCheckoutButton();
 
     try {
-      await page.waitForSelector('.cia-guest-content .js-cia-guest-button', { timeout: 10000 });
+      await page.waitForSelector('.cia-guest-content__continue', { timeout: 10000 });
 
       logger.info('Checkout successful, starting order placement');
     } catch (error) {
@@ -334,7 +328,7 @@ export class BestBuy {
 
     logger.info('Continuing as guest');
 
-    await page.click('.cia-guest-content .js-cia-guest-button');
+    await page.click('.cia-guest-content__continue');
 
     await page.waitForSelector('.checkout__container .fulfillment');
   }
