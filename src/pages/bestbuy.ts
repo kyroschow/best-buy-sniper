@@ -148,20 +148,25 @@ export class BestBuy {
 
     // ****** For high demand items like 3000 series gpu enable this code block ****** //
     try {
-      let startTime = performance.now();
-      let elapsed = 0;
-      let timeout_sec: number = 300; // timeout in seconds, default 5 minutes
+      const gotDisabled = await page.$('.add-to-cart-button:disabled');
 
-      while (!result && elapsed < timeout_sec) {
-        logger.info('Item was not added to cart due to BestBuy queue protection system. Retrying in 2sec...');
-        await this.delay(2000); // wait 2 seconds and re-check if the button got enabled
-        let buttonEnabled = await this.isInStock();
-        if (buttonEnabled) {
-          await page.focus('.add-to-cart-button:not([disabled])');
-          await page.click('.add-to-cart-button:not([disabled])');
+      if (gotDisabled) {
+        logger.info('Add to cart got disabled after initial click due to Queue System. Waiting for Add to Cart button...');
+        let startTime = performance.now();
+        let elapsed = 0;
+        let timeout_sec: number = 600; // timeout in seconds, default 5 minutes (300)
+
+        while (!result && elapsed < timeout_sec) {
+          logger.info('Item was not added to cart due to BestBuy queue protection system. Retrying in 2sec...');
+          await this.delay(2000); // wait 2 seconds and re-check if the button got enabled
+          let buttonEnabled = await this.isInStock();
+          if (buttonEnabled) {
+            await page.focus('.add-to-cart-button:not([disabled])');
+            await page.click('.add-to-cart-button:not([disabled])');
+            result = await this.hasItemBeenAddedToCart();
+          }
+          elapsed = Math.floor((performance.now() - startTime) / 1000); // convert to sec and update elapsed
         }
-        elapsed = Math.floor((performance.now() - startTime) / 1000); // convert to sec and update elapsed
-        result = await this.hasItemBeenAddedToCart();
       }
     }
     catch (err) {
@@ -197,6 +202,23 @@ export class BestBuy {
     const page = await this.getPage();
     const enabledButton = await page.$('.add-to-cart-button:not([disabled])');
 
+    // filter out check stores or find a store buttons
+    let checkStoresOption = await page.$("text='Check Stores'");
+    let findAStoreOption = await page.$("text='Find a Store'");
+    let alertOpen = await page.$('.c-alert-level-danger');
+
+    let retries = 0;
+
+    while ((checkStoresOption || findAStoreOption) && retries <= 3) {
+      await this.delay(500);
+      checkStoresOption = await page.$("text='Check Stores'");
+      findAStoreOption = await page.$("text='Find a Store'");
+      retries++;
+    }
+
+    if (checkStoresOption || findAStoreOption) {
+      return false;
+    }
     if (enabledButton) return true;
 
     return false;
@@ -268,7 +290,7 @@ export class BestBuy {
       logger.info('Refreshing and trying to checkout again');
 
       await Promise.all([
-        sendDiscordMessage({ message: `Checkout did not went through, trying again`, image: startingCheckoutScreenshotPath }),
+        sendDiscordMessage({ message: `Checkout did not go through, trying again`, image: startingCheckoutScreenshotPath }),
       ]);
 
       await this.checkout(true);

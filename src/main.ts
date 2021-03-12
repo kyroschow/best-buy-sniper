@@ -79,9 +79,9 @@ pm2.connect(async (error) => {
       logger.error(error);
 
       if (error.message === 'Browser is considered a bot, aborting attempt') {
-        logger.warn('Waiting 3 minutes to refresh bot status');
+        logger.warn('Waiting 10 minutes to refresh bot status');
 
-        await wait(180000);
+        await wait(600000);
       }
     }
   } while (!finished);
