@@ -12,15 +12,15 @@ interface MessageProperties {
 }
 
 export const sendMessage = async ({ color, image, message, title }: MessageProperties) => {
-  const embed = new MessageBuilder().setDescription(message);
-
-  embed.setText('@here');
-
-  if (title) embed.setTitle(title);
-
-  if (color) embed.setColor(color);
-
-  await hook.send(embed);
-
-  if (image) await hook.sendFile(image);
+  try {
+    const embed = new MessageBuilder().setDescription(message);
+    embed.setText('@here');
+    if (title) embed.setTitle(title);
+    if (color) embed.setColor(color);
+    await hook.send(embed);
+    if (image) await hook.sendFile(image);
+  }
+  catch (err) {
+    console.log(`Sending Discord notification failed with err: ${err}`);
+  }
 };

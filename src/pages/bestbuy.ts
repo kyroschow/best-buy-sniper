@@ -6,6 +6,7 @@ import { logger } from '@core/logger';
 import { resolve } from 'path';
 import { sendMessage as sendDiscordMessage } from '@core/notifications/discord';
 import { existsSync, writeFileSync } from 'fs';
+const performance = require('perf_hooks').performance;
 
 interface ProductInformation {
   searchText?: string;
@@ -128,6 +129,7 @@ export class BestBuy {
 
     await page.focus('.add-to-cart-button:not([disabled])');
 
+
     const productInStockScreenshotPath = resolve(`screenshots/${Date.now()}_product-in-stock.png`);
 
     await page.screenshot({
@@ -142,14 +144,44 @@ export class BestBuy {
     logger.info(`"${productName}" in stock, adding to cart...`);
 
     await page.click('.add-to-cart-button:not([disabled])');
+    let result = await this.hasItemBeenAddedToCart();
 
-    const result = await this.hasItemBeenAddedToCart();
+    // ****** For high demand items like 3000 series gpu enable this code block ****** //
+    try {
+      const gotDisabled = await page.$('.add-to-cart-button:disabled');
+
+      if (gotDisabled) {
+        logger.info('Add to cart got disabled after initial click due to Queue System. Waiting for Add to Cart button...');
+        let startTime = performance.now();
+        let elapsed = 0;
+        let timeout_sec: number = 600; // timeout in seconds, default 5 minutes (300)
+
+        while (!result && elapsed < timeout_sec) {
+          logger.info('Item was not added to cart due to BestBuy queue protection system. Retrying in 2sec...');
+          await this.delay(2000); // wait 2 seconds and re-check if the button got enabled
+          let buttonEnabled = await this.isInStock();
+          if (buttonEnabled) {
+            await page.focus('.add-to-cart-button:not([disabled])');
+            await page.click('.add-to-cart-button:not([disabled])');
+            result = await this.hasItemBeenAddedToCart();
+          }
+          elapsed = Math.floor((performance.now() - startTime) / 1000); // convert to sec and update elapsed
+        }
+      }
+    }
+    catch (err) {
+      logger.error(`Error re-trying to add to cart: ${err}`);
+    }
+
+    // ******************************************************************************* //
+
 
     if (!result) throw new Error(`Product "${productName}" was not able to be added to the cart`);
 
     const productAddedImagePath = resolve(`screenshots/${Date.now()}_product-added.png`);
 
     logger.info(`Product "${productName}" added to cart!`);
+
 
     await page.screenshot({
       path: productAddedImagePath,
@@ -159,25 +191,51 @@ export class BestBuy {
     await Promise.all([
       sendDiscordMessage({ message: `Product "${productName}" added to cart!`, image: productAddedImagePath }),
     ]);
+
+  }
+
+  public async delay(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   public async isInStock() {
     const page = await this.getPage();
     const enabledButton = await page.$('.add-to-cart-button:not([disabled])');
 
+    // filter out check stores or find a store buttons
+    let checkStoresOption = await page.$("text='Check Stores'");
+    let findAStoreOption = await page.$("text='Find a Store'");
+    let alertOpen = await page.$('.c-alert-level-danger');
+
+    let retries = 0;
+
+    while ((checkStoresOption || findAStoreOption) && retries <= 3) {
+      await this.delay(500);
+      checkStoresOption = await page.$("text='Check Stores'");
+      findAStoreOption = await page.$("text='Find a Store'");
+      retries++;
+    }
+
+    if (checkStoresOption || findAStoreOption) {
+      return false;
+    }
     if (enabledButton) return true;
 
     return false;
   }
 
   private async hasItemBeenAddedToCart() {
-    const page = await this.getPage();
-
-    const completedSuccessfuly = await page.waitForResponse(
-      (response: any) => response.url() === 'https://www.bestbuy.com/cart/api/v1/addToCart' && response.status() === 200
-    );
-
-    return completedSuccessfuly;
+    try {
+      const page = await this.getPage();
+      const completedSuccessfuly = await page.waitForResponse(
+        (response: any) => response.url() === 'https://www.bestbuy.com/cart/api/v1/addToCart' && response.status() === 200
+      );
+      return completedSuccessfuly;
+    }
+    catch {
+      logger.warn(`Item has not been added to cart...`);
+      return null;
+    }
   }
 
   private async checkout(retrying: boolean = false) {
@@ -224,7 +282,7 @@ export class BestBuy {
     await this.clickCheckoutButton();
 
     try {
-      await page.waitForSelector('.cia-guest-content .js-cia-guest-button', { timeout: 10000 });
+      await page.waitForSelector('.cia-guest-content__continue', { timeout: 10000 });
 
       logger.info('Checkout successful, starting order placement');
     } catch (error) {
@@ -232,7 +290,7 @@ export class BestBuy {
       logger.info('Refreshing and trying to checkout again');
 
       await Promise.all([
-        sendDiscordMessage({ message: `Checkout did not went through, trying again`, image: startingCheckoutScreenshotPath }),
+        sendDiscordMessage({ message: `Checkout did not go through, trying again`, image: startingCheckoutScreenshotPath }),
       ]);
 
       await this.checkout(true);
@@ -292,7 +350,7 @@ export class BestBuy {
 
     logger.info('Continuing as guest');
 
-    await page.click('.cia-guest-content .js-cia-guest-button');
+    await page.click('.cia-guest-content__continue');
 
     await page.waitForSelector('.checkout__container .fulfillment');
   }
