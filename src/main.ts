@@ -3,7 +3,7 @@ import { BestBuy, wait } from '@pages/bestbuy';
 import { getTasks } from '@core/configs';
 import { random } from 'lodash';
 import { logger } from '@core/logger';
-import { sendMessage as sendDiscordMessage } from '@core/notifications/discord';
+import { sendMessage } from '@core/notifications/notifier';
 import { existsSync, writeFileSync } from 'fs';
 import pm2 from 'pm2';
 
@@ -18,6 +18,8 @@ const main = async () => {
 
     process.exit(2);
   }
+
+  sendMessage({message: "BestBuy Sniper started..."})
 
   const bestbuy = new BestBuy({ products: bestbuyConfig.products });
   let purchaseCompleted = false;
@@ -42,7 +44,7 @@ const main = async () => {
     logger.info('Shutting down in 1 minute');
   
     await Promise.all([
-      await sendDiscordMessage({ message: 'Shutting down in 1 minute' }),
+      await sendMessage({ message: 'Shutting down in 1 minute' }),
     ]);
   
     await wait(60000);

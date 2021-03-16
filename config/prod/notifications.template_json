@@ -1,5 +1,11 @@
 {
   "discord": {
+    "enabled": false,
     "url": ""
+  },
+  "telegram" : {
+    "enabled": false,
+    "token": "",
+    "chatId": ""
   }
 }
