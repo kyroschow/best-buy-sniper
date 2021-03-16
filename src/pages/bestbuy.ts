@@ -58,7 +58,7 @@ export class BestBuy {
   public async purchaseProduct() {
     const page = await this.getPage();
 
-    await page.goto('https://bestbuy.com');
+    await page.goto('https://bestbuy.com', { timeout: 90000 });
 
     for (const product of this.products) {
       try {
@@ -86,7 +86,7 @@ export class BestBuy {
 
     logger.info(`Navigating to ${bestBuyUrl}${productPage}`);
 
-    await page.goto(`${bestBuyUrl}${productPage}`, { timeout: 60000 });
+    await page.goto(`${bestBuyUrl}${productPage}`, { timeout: 90000 });
 
     await page.waitForSelector('.sku.product-data');
 
@@ -244,7 +244,7 @@ export class BestBuy {
 
     logger.info(`Navigating to cart`);
 
-    await page.goto('https://www.bestbuy.com/cart');
+    await page.goto('https://www.bestbuy.com/cart', { timeout: 90000 });
 
     if (retrying && (await this.isCartEmpty())) throw new Error('Cart is empty, aborting attempt');
 
