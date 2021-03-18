@@ -17,12 +17,14 @@ interface ProductInformation {
 }
 
 export const wait = (ms: number) => {
+  let timeoutHandle: NodeJS.Timeout;
+
   return new Promise((resolve) => {
     // setTimeout causes a memory leak due to timer object remaining in memory if not cleared at the end.
-    let timerId = setTimeout(resolve, ms);
-    if (timerId) {
-      clearTimeout(timerId);
-    }
+    timeoutHandle = setTimeout(resolve, ms);
+  }).then((result) => {
+    clearTimeout(timeoutHandle);
+    return result;
   });
 };
 
@@ -329,13 +331,14 @@ export class BestBuy {
 
         if (!!element) {
           const { textContent } = element;
-
           return textContent?.trim() === zipCode;
         }
       },
       zipCode,
       { polling: 200 }
     );
+
+    logger.info('Zip code updated successfully');
   }
 
   private async clickCheckoutButton() {
