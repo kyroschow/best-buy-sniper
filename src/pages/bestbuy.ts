@@ -18,7 +18,11 @@ interface ProductInformation {
 
 export const wait = (ms: number) => {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    // setTimeout causes a memory leak due to timer object remaining in memory if not cleared at the end.
+    let timerId = setTimeout(resolve, ms);
+    if (timerId) {
+      clearTimeout(timerId);
+    }
   });
 };
 
@@ -47,9 +51,10 @@ export class BestBuy {
     return this.page;
   }
 
-  async close(): Promise<void> {  
+  async close(): Promise<void> {
     await this.page?.close();
     await this.context?.close();
+    await this.browser?.close();
 
     this.page = undefined;
     this.context = undefined;
@@ -58,7 +63,7 @@ export class BestBuy {
   public async purchaseProduct() {
     const page = await this.getPage();
 
-    await page.goto('https://bestbuy.com');
+    await page.goto('https://bestbuy.com', { timeout: 90000 });
 
     for (const product of this.products) {
       try {
@@ -86,7 +91,7 @@ export class BestBuy {
 
     logger.info(`Navigating to ${bestBuyUrl}${productPage}`);
 
-    await page.goto(`${bestBuyUrl}${productPage}`, { timeout: 60000 });
+    await page.goto(`${bestBuyUrl}${productPage}`, { timeout: 90000 });
 
     await page.waitForSelector('.sku.product-data');
 
@@ -158,7 +163,7 @@ export class BestBuy {
 
         while (!result && elapsed < timeout_sec) {
           logger.info('Item was not added to cart due to BestBuy queue protection system. Retrying in 2sec...');
-          await this.delay(2000); // wait 2 seconds and re-check if the button got enabled
+          await wait(2000); // wait 2 seconds and re-check if the button got enabled
           let buttonEnabled = await this.isInStock();
           if (buttonEnabled) {
             await page.focus('.add-to-cart-button:not([disabled])');
@@ -194,10 +199,6 @@ export class BestBuy {
 
   }
 
-  public async delay(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
   public async isInStock() {
     const page = await this.getPage();
     const enabledButton = await page.$('.add-to-cart-button:not([disabled])');
@@ -210,7 +211,7 @@ export class BestBuy {
     let retries = 0;
 
     while ((checkStoresOption || findAStoreOption) && retries <= 3) {
-      await this.delay(500);
+      await wait(500);
       checkStoresOption = await page.$("text='Check Stores'");
       findAStoreOption = await page.$("text='Find a Store'");
       retries++;
@@ -244,7 +245,7 @@ export class BestBuy {
 
     logger.info(`Navigating to cart`);
 
-    await page.goto('https://www.bestbuy.com/cart');
+    await page.goto('https://www.bestbuy.com/cart', { timeout: 90000 });
 
     if (retrying && (await this.isCartEmpty())) throw new Error('Cart is empty, aborting attempt');
 
@@ -262,10 +263,10 @@ export class BestBuy {
           shippingSelected = true;
         } catch (error) {
           attempt += 1;
-  
+
           if (attempt > 3) throw new Error("Can't select shipping, aborting attempt");
         }
-      } while(!shippingSelected);
+      } while (!shippingSelected);
     }
 
     const startingCheckoutScreenshotPath = resolve(`screenshots/${Date.now()}_starting-checkout.png`);
