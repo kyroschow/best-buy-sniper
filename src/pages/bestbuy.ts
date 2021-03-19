@@ -17,16 +17,13 @@ interface ProductInformation {
 }
 
 export const wait = (ms: number) => {
-  let timeoutHandle: NodeJS.Timeout;
-
-  return new Promise((resolve) => {
-    // setTimeout causes a memory leak due to timer object remaining in memory if not cleared at the end.
-    timeoutHandle = setTimeout(resolve, ms);
-  }).then((result) => {
-    clearTimeout(timeoutHandle);
-    return result;
+  return new Promise<void>(function (resolve) {
+    let id = setTimeout(function () {
+      clearTimeout(id);
+      resolve();
+    }, ms);
   });
-};
+}
 
 const bestBuyUrl = 'https://bestbuy.com';
 
