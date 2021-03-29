@@ -415,10 +415,11 @@ export class BestBuy {
       process.exit(2);
     }
 
-    // *** UNCOMMENT THIS SECTION TO ENABLE AUTO-CHECKOUT ***
-
-    if (!!placeOrderButton) {
-      await page.click('.button--place-order button.btn-primary');
+    const autoCheckout = true; // SET TO *TRUE* TO ENABLE AUTO-CHECKOUT
+    if (autoCheckout) {
+      if (!!placeOrderButton) {
+        await page.click('.button--place-order button.btn-primary');
+      }
     }
 
     await wait(3000);
