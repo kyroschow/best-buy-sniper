@@ -417,9 +417,9 @@ export class BestBuy {
 
     // *** UNCOMMENT THIS SECTION TO ENABLE AUTO-CHECKOUT ***
 
-    // if (!!placeOrderButton) {
-    //   await page.click('.button--place-order button.btn-primary');
-    // }
+    if (!!placeOrderButton) {
+      await page.click('.button--place-order button.btn-primary');
+    }
 
     await wait(3000);
 
@@ -503,10 +503,10 @@ export class BestBuy {
     await page.type('#credit-card-cvv', paymentInformation.cvv);
     await page.type('[id="payment.billingAddress.firstName"]', paymentInformation.firstName);
     await page.type('[id="payment.billingAddress.lastName"]', paymentInformation.lastName);
-    await page.type('[id="payment.billingAddress.street"]', paymentInformation.address);
     await page.type('[id="payment.billingAddress.city"]', paymentInformation.city);
     await page.type('[id="payment.billingAddress.state"]', paymentInformation.state);
     await page.type('[id="payment.billingAddress.zipcode"]', paymentInformation.zipcode);
+    await page.type('[id="payment.billingAddress.street"]', paymentInformation.address);
 
     logger.info('Payment information completed');
   }
